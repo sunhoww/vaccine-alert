@@ -7,7 +7,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 const { CHAT_ID, BOT_TOKEN, DISTRICT_IDS } = process.env;
 
-const lastMessages: Record<number, string | null> = {};
+const lastMessages: Record<number, { hash: string | null; published: Date }> = {};
 
 function main() {
   if (!CHAT_ID || !BOT_TOKEN || !DISTRICT_IDS) {
@@ -18,7 +18,7 @@ function main() {
   DISTRICT_IDS.split(',')
     .map((x) => parseInt(x, 10))
     .forEach((districtId) => {
-      lastMessages[districtId] = null;
+      lastMessages[districtId] = { hash: null, published: null };
       run(districtId);
     });
 }
@@ -64,12 +64,17 @@ async function request(districtId: number, dt: Date) {
     `${date} ${time} District: ${districtId} Available: ${availableCenters.length}`
   );
   if (availableCenters.length === 0) {
-    lastMessages[districtId] = null;
+    lastMessages[districtId] = { ...lastMessages[districtId], hash: null };
     return;
   }
 
-  const msgHash = hashResult(availableCenters, dt);
-  if (lastMessages[districtId] !== msgHash) {
+  const msgHash = hashResult(availableCenters);
+  const { hash: lastHash, published: lastPublished } = lastMessages[districtId];
+  if (
+    lastHash !== msgHash ||
+    !lastPublished ||
+    dt.getTime() - lastPublished.getTime() > 1000 * 60 * 15
+  ) {
     const msg = makeMessage(availableCenters);
     await postMessage(msg);
     console.log(
@@ -78,7 +83,7 @@ async function request(districtId: number, dt: Date) {
         0
       )}`
     );
-    lastMessages[districtId] = msgHash;
+    lastMessages[districtId] = { hash: msgHash, published: new Date() };
   }
 }
 
@@ -134,11 +139,8 @@ async function postMessage(text: string) {
   }
 }
 
-function hashResult(centers: Center[], date: Date) {
-  return hash({
-    timestamp: Math.floor(date.valueOf() / 1000 / 60 / 30),
-    centers: new Set(centers.map(({ center_id }) => center_id)),
-  });
+function hashResult(centers: Center[]) {
+  return hash(new Set(centers.map(({ center_id }) => center_id)));
 }
 
 function djb(block: Buffer) {
