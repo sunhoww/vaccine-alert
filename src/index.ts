@@ -67,7 +67,7 @@ async function request(districtId: number, dt: Date) {
     return;
   }
 
-  const msgHash = hashResult(availableCenters);
+  const msgHash = hashResult(availableCenters, dt);
   if (lastMessages[districtId] !== msgHash) {
     const msg = makeMessage(availableCenters);
     await postMessage(msg);
@@ -133,8 +133,11 @@ async function postMessage(text: string) {
   }
 }
 
-function hashResult(centers: Center[]) {
-  return hash(new Set(centers.map(({ center_id }) => center_id)));
+function hashResult(centers: Center[], date: Date) {
+  return hash({
+    timestamp: Math.floor(date.valueOf() / 1000 / 60 / 30),
+    centers: new Set(centers.map(({ center_id }) => center_id)),
+  });
 }
 
 function djb(block: Buffer) {
