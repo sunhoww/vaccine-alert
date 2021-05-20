@@ -64,6 +64,7 @@ async function request(districtId: number, dt: Date) {
     `${date} ${time} District: ${districtId} Available: ${availableCenters.length}`
   );
   if (availableCenters.length === 0) {
+    lastMessages[districtId] = null;
     return;
   }
 
