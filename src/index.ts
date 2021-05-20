@@ -15,6 +15,7 @@ function main() {
     process.exit(1);
   }
 
+  console.log(`Starting app:${process.env.APP_VERSION || 'dev'}`);
   DISTRICT_IDS.split(',')
     .map((x) => parseInt(x, 10))
     .forEach((districtId) => {
