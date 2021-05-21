@@ -38,9 +38,6 @@ async function request(districtId: number, dt: Date) {
   const date = `${String(dt.getDate()).padStart(2, '0')}-${String(
     dt.getMonth() + 1
   ).padStart(2, '0')}-${dt.getFullYear()}`;
-  const time = `${String(dt.getHours()).padStart(2, '0')}:${String(
-    dt.getMinutes()
-  ).padStart(2, '0')}:${String(dt.getSeconds()).padStart(2, '0')}`;
 
   const res = await fetch(
     `https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/calendarByDistrict?district_id=${districtId}&date=${date}`,
@@ -61,9 +58,6 @@ async function request(districtId: number, dt: Date) {
   }
 
   const availableCenters = getSlots(data.centers);
-  console.log(
-    `${date} ${time} District: ${districtId} Available: ${availableCenters.length}`
-  );
   if (availableCenters.length === 0) {
     lastMessages[districtId] = { ...lastMessages[districtId], hash: null };
     return;
@@ -71,6 +65,11 @@ async function request(districtId: number, dt: Date) {
 
   const msgHash = hashResult(availableCenters);
   const { hash: lastHash, published: lastPublished } = lastMessages[districtId];
+
+  console.log(
+    `${dt.toLocaleString()} District: ${districtId} Centers: ${availableCenters.length}`
+  );
+
   if (
     lastHash !== msgHash ||
     !lastPublished ||
@@ -78,13 +77,14 @@ async function request(districtId: number, dt: Date) {
   ) {
     const msg = makeMessage(availableCenters);
     await postMessage(msg);
+    const published = new Date();
+    lastMessages[districtId] = { hash: msgHash, published };
     console.log(
-      `${date} ${time} District: ${districtId} Published: ${availableCenters.reduce(
+      `${dt.toLocaleString()} District: ${districtId} Sessions: ${availableCenters.reduce(
         (a, { sessions }) => a + sessions.length,
         0
-      )}`
+      )} Hash: ${msgHash} Published: ${published?.toLocaleString() || null}`
     );
-    lastMessages[districtId] = { hash: msgHash, published: new Date() };
   }
 }
 
