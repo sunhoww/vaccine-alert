@@ -5,7 +5,9 @@ if (process.env.NODE_ENV !== 'production') {
   const dotenv = require('dotenv');
   dotenv.config();
 }
-const { CHAT_ID, BOT_TOKEN, DISTRICT_IDS } = process.env;
+const PUBLISH_INTERVAL = process.env.PUBLISH_INTERVAL
+  ? parseInt(process.env.PUBLISH_INTERVAL, 10)
+  : 15;
 
 const lastMessages: Record<number, { hash: string | null; published: Date }> = {};
 
@@ -70,11 +72,11 @@ async function request(districtId: number, dt: Date) {
     `${dt.toLocaleString()} District: ${districtId} Centers: ${availableCenters.length}`
   );
 
-  if (
+  const shouldPublish =
     lastHash !== msgHash ||
-    !lastPublished ||
-    dt.getTime() - lastPublished.getTime() > 1000 * 60 * 15
-  ) {
+    dt.getTime() - lastPublished.getTime() > 1000 * 60 * PUBLISH_INTERVAL;
+
+  if (shouldPublish) {
     const msg = makeMessage(availableCenters);
     await postMessage(msg);
     const published = new Date();
