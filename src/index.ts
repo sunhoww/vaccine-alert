@@ -123,7 +123,7 @@ async function processData(
       `${dt.toLocaleString()} District: ${districtId}/${min_age} Sessions: ${availableCenters.reduce(
         (a, { sessions }) => a + sessions.length,
         0
-      )} Published: ${published?.toLocaleString() || null}`
+      )} Published: ${published.toLocaleString() || null}`
     );
   }
 }
@@ -179,14 +179,6 @@ async function postMessage(text: string, chat_id: string) {
 
 function hashCenters(centers: Center[]) {
   return objectHash(new Set(centers.map(({ center_id }) => center_id)));
-}
-
-function djb(block: Buffer) {
-  let hash = 0;
-  for (var i = 0; i < block.length; i++) {
-    hash = (hash * 33 + block[i]) >>> 0;
-  }
-  return hash;
 }
 
 main();
