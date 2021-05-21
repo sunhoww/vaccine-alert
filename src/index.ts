@@ -5,14 +5,15 @@ if (process.env.NODE_ENV !== 'production') {
   const dotenv = require('dotenv');
   dotenv.config();
 }
+const { CHAT_ID_18, CHAT_ID_45, BOT_TOKEN, DISTRICT_IDS } = process.env;
 const PUBLISH_INTERVAL = process.env.PUBLISH_INTERVAL
   ? parseInt(process.env.PUBLISH_INTERVAL, 10)
   : 15;
 
-const lastMessages: Record<number, { hash: string | null; published: Date }> = {};
+const lastMessages: Record<string, { hash: string | null; published: Date }> = {};
 
 function main() {
-  if (!CHAT_ID || !BOT_TOKEN || !DISTRICT_IDS) {
+  if (!(CHAT_ID_18 || CHAT_ID_45) || !BOT_TOKEN || !DISTRICT_IDS) {
     console.error('Required environment variables not found');
     process.exit(1);
   }
@@ -21,7 +22,8 @@ function main() {
   DISTRICT_IDS.split(',')
     .map((x) => parseInt(x, 10))
     .forEach((districtId) => {
-      lastMessages[districtId] = { hash: null, published: null };
+      lastMessages[`${districtId}:18`] = { hash: null, published: new Date(0) };
+      lastMessages[`${districtId}:45`] = { hash: null, published: new Date(0) };
       run(districtId);
     });
 }
@@ -59,17 +61,36 @@ async function request(districtId: number, dt: Date) {
     return;
   }
 
-  const availableCenters = getSlots(data.centers);
+  CHAT_ID_18 && processData(districtId, dt, data, 18, CHAT_ID_18);
+  CHAT_ID_45 && processData(districtId, dt, data, 45, CHAT_ID_45);
+}
+
+async function processData(
+  districtId: number,
+  dt: Date,
+  data: { centers: Center[] },
+  min_age: 18 | 45,
+  chat_id: string
+) {
+  const key = `${districtId}:${min_age}`;
+  const availableCenters = getSlots(data.centers, min_age);
   if (availableCenters.length === 0) {
-    lastMessages[districtId] = { ...lastMessages[districtId], hash: null };
+    lastMessages[key] = { ...lastMessages[key], hash: null };
     return;
   }
 
   const msgHash = hashResult(availableCenters);
-  const { hash: lastHash, published: lastPublished } = lastMessages[districtId];
+  const { hash: lastHash, published: lastPublished } = lastMessages[key];
 
   console.log(
-    `${dt.toLocaleString()} District: ${districtId} Centers: ${availableCenters.length}`
+    `${dt.toLocaleString()} District: ${districtId}/${min_age} Centers: ${
+      availableCenters.length
+    } Doses: ${availableCenters
+      .map(({ sessions }) =>
+        sessions.map(({ available_capacity }) => available_capacity)
+      )
+      .flat()
+      .reduce((a, x) => a + x, 0)}`
   );
 
   const shouldPublish =
@@ -78,11 +99,11 @@ async function request(districtId: number, dt: Date) {
 
   if (shouldPublish) {
     const msg = makeMessage(availableCenters);
-    await postMessage(msg);
+    await postMessage(msg, `@${chat_id}`);
     const published = new Date();
-    lastMessages[districtId] = { hash: msgHash, published };
+    lastMessages[key] = { hash: msgHash, published };
     console.log(
-      `${dt.toLocaleString()} District: ${districtId} Sessions: ${availableCenters.reduce(
+      `${dt.toLocaleString()} District: ${districtId}/${min_age} Sessions: ${availableCenters.reduce(
         (a, { sessions }) => a + sessions.length,
         0
       )} Hash: ${msgHash} Published: ${published?.toLocaleString() || null}`
@@ -90,12 +111,12 @@ async function request(districtId: number, dt: Date) {
   }
 }
 
-function getSlots(centers: Center[]) {
+function getSlots(centers: Center[], _min_age: 18 | 45) {
   return centers
     .map(({ sessions, ...rest }) => ({
       sessions: sessions.filter(
         ({ available_capacity, min_age_limit }) =>
-          available_capacity > 0 && min_age_limit === 18
+          available_capacity > 0 && min_age_limit === _min_age
       ),
       ...rest,
     }))
@@ -123,17 +144,13 @@ ${centers
 `;
 }
 
-async function postMessage(text: string) {
+async function postMessage(text: string, chat_id: string) {
   const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      chat_id: `@${CHAT_ID}`,
-      text,
-      parse_mode: 'HTML',
-    }),
+    body: JSON.stringify({ chat_id, text, parse_mode: 'HTML' }),
   });
 
   if (!res.ok) {
