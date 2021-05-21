@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import hash from 'object-hash';
+import objectHash from 'object-hash';
 
 if (process.env.NODE_ENV !== 'production') {
   const dotenv = require('dotenv');
@@ -10,7 +10,10 @@ const PUBLISH_INTERVAL = process.env.PUBLISH_INTERVAL
   ? parseInt(process.env.PUBLISH_INTERVAL, 10)
   : 15;
 
-const lastMessages: Record<string, { hash: string | null; published: Date }> = {};
+const lastMessages: Record<
+  string,
+  { centerHash: string | null; resultHash: string | null; published: Date }
+> = {};
 
 function main() {
   if (!(CHAT_ID_18 || CHAT_ID_45) || !BOT_TOKEN || !DISTRICT_IDS) {
@@ -22,8 +25,16 @@ function main() {
   DISTRICT_IDS.split(',')
     .map((x) => parseInt(x, 10))
     .forEach((districtId) => {
-      lastMessages[`${districtId}:18`] = { hash: null, published: new Date(0) };
-      lastMessages[`${districtId}:45`] = { hash: null, published: new Date(0) };
+      lastMessages[`${districtId}:18`] = {
+        centerHash: null,
+        resultHash: null,
+        published: new Date(0),
+      };
+      lastMessages[`${districtId}:45`] = {
+        centerHash: null,
+        resultHash: null,
+        published: new Date(0),
+      };
       run(districtId);
     });
 }
@@ -75,12 +86,17 @@ async function processData(
   const key = `${districtId}:${min_age}`;
   const availableCenters = getSlots(data.centers, min_age);
   if (availableCenters.length === 0) {
-    lastMessages[key] = { ...lastMessages[key], hash: null };
+    lastMessages[key] = { ...lastMessages[key], centerHash: null };
     return;
   }
 
-  const msgHash = hashResult(availableCenters);
-  const { hash: lastHash, published: lastPublished } = lastMessages[key];
+  const centerHash = hashCenters(availableCenters);
+  const resultHash = objectHash(availableCenters);
+  const {
+    centerHash: lastCenterHash,
+    resultHash: lastResultHash,
+    published: lastPublished,
+  } = lastMessages[key];
 
   console.log(
     `${dt.toLocaleString()} District: ${districtId}/${min_age} Centers: ${
@@ -94,19 +110,20 @@ async function processData(
   );
 
   const shouldPublish =
-    lastHash !== msgHash ||
-    dt.getTime() - lastPublished.getTime() > 1000 * 60 * PUBLISH_INTERVAL;
+    lastCenterHash !== centerHash ||
+    (lastResultHash !== resultHash &&
+      dt.getTime() - lastPublished.getTime() > 1000 * 60 * PUBLISH_INTERVAL);
 
   if (shouldPublish) {
     const msg = makeMessage(availableCenters);
     await postMessage(msg, `@${chat_id}`);
     const published = new Date();
-    lastMessages[key] = { hash: msgHash, published };
+    lastMessages[key] = { centerHash, resultHash, published };
     console.log(
       `${dt.toLocaleString()} District: ${districtId}/${min_age} Sessions: ${availableCenters.reduce(
         (a, { sessions }) => a + sessions.length,
         0
-      )} Hash: ${msgHash} Published: ${published?.toLocaleString() || null}`
+      )} Published: ${published?.toLocaleString() || null}`
     );
   }
 }
@@ -160,8 +177,8 @@ async function postMessage(text: string, chat_id: string) {
   }
 }
 
-function hashResult(centers: Center[]) {
-  return hash(new Set(centers.map(({ center_id }) => center_id)));
+function hashCenters(centers: Center[]) {
+  return objectHash(new Set(centers.map(({ center_id }) => center_id)));
 }
 
 function djb(block: Buffer) {
