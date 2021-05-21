@@ -137,10 +137,11 @@ ${centers
       ({ date, available_capacity_dose1, available_capacity_dose2 }) =>
         `${date} (${available_capacity_dose1}|${available_capacity_dose2})`
     )
-    .join(', ')}
+    .join('\n  ')}
 `
   )
   .join('')}
+Book at https://selfregistration.cowin.gov.in
 `;
 }
 
