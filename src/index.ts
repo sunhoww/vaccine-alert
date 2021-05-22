@@ -6,6 +6,9 @@ if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
 }
 const { CHAT_ID_18, CHAT_ID_45, BOT_TOKEN, DISTRICT_IDS } = process.env;
+const POLLING_INTERVAL = process.env.POLLING_INTERVAL
+  ? parseInt(process.env.POLLING_INTERVAL, 10)
+  : 15;
 const PUBLISH_INTERVAL = process.env.PUBLISH_INTERVAL
   ? parseInt(process.env.PUBLISH_INTERVAL, 10)
   : 15;
@@ -46,7 +49,7 @@ async function run(districtId: number) {
   } catch (error) {
     console.error(error);
   }
-  setTimeout(() => run(districtId), 15 * 1000);
+  setTimeout(() => run(districtId), POLLING_INTERVAL * 1000);
 }
 
 async function request(districtId: number, dt: Date) {
